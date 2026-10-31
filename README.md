@@ -58,6 +58,18 @@ npm run preview    # 生成 .preview/index.html：不启动后端也能看真实
 预览页复用了 `../QwenPaw/console/src/styles/tokens.css`（可用 `QWENPAW_CONSOLE=/path/to/console` 指定），
 `?theme=dark`、`?lang=en` 可切暗色与英文。
 
+## 发布新版本
+
+```bash
+npm version 0.2.0 --no-git-tag-version   # 只改 version
+git commit -am "chore: release v0.2.0"
+git push origin main
+git push origin v0.2.0                   # 单独推 tag，CI 才会打 Release
+```
+
+`plugin.json` 的 `version` 与 tag 必须一致（CI 会校验），Release 里会自动附上 zip 与 `.sha256`。
+注意：`git push --follow-tags` 把分支和 tag 一次性推时 GitHub 只跑分支那一次，tag 要单独推。
+
 ## 结构
 
 | 路径 | 作用 |
