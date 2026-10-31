@@ -1,0 +1,149 @@
+import * as React from "react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { StartupWelcome } from "../src/StartupWelcome";
+import type { AgentSummary } from "../src/agents";
+
+const agents: AgentSummary[] = [
+  { id: "default", name: "默认智能体", description: "处理日常问答" },
+  { id: "ops", name: "运维值班", description: "日志与告警排查" },
+  { id: "off", name: "停用智能体", description: "不会出现", enabled: false },
+];
+
+function hostFetch(list: AgentSummary[] | "fail"): void {
+  (window as unknown as { QwenPaw: unknown }).QwenPaw = {
+    host: {
+      React: {},
+      fetch: async () => {
+        if (list === "fail") return { ok: false, status: 500, json: async () => ({}) };
+        return { ok: true, status: 200, json: async () => ({ agents: list }) };
+      },
+    },
+  };
+}
+
+function renderWelcome(props: Partial<Parameters<typeof StartupWelcome>[0]> = {}) {
+  const onSkip = vi.fn();
+  const launchImpl = vi.fn(() => ({ ok: true as const }));
+  render(<StartupWelcome onSkip={onSkip} launchImpl={launchImpl} {...props} />);
+  return { onSkip, launchImpl };
+}
+
+describe("StartupWelcome", () => {
+  it("shows a skeleton first, then the cards", async () => {
+    hostFetch(agents);
+    renderWelcome();
+    expect(document.querySelector(".qpst-skeleton")).not.toBeNull();
+    expect(await screen.findByText("默认智能体")).toBeTruthy();
+    expect(document.querySelector(".qpst-skeleton")).toBeNull();
+  });
+
+  it("renders disabled agents but keeps them unselectable", async () => {
+    hostFetch(agents);
+    renderWelcome();
+    const disabled = (await screen.findByText("停用智能体")).closest(
+      ".qpst-card",
+    ) as HTMLElement;
+    expect(disabled.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(disabled);
+    expect(disabled.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("does not offer the model or tools on a card", async () => {
+    hostFetch(agents);
+    renderWelcome();
+    await screen.findByText("默认智能体");
+    expect(screen.queryByText(/claude|gpt|模型|模型：/i)).toBeNull();
+  });
+
+  it("falls back to the host welcome when at most one agent is usable", async () => {
+    hostFetch([agents[0]!, agents[2]!]);
+    const { onSkip } = renderWelcome();
+    await waitFor(() => expect(onSkip).toHaveBeenCalledTimes(1));
+  });
+
+  it("skips when the agent list is empty", async () => {
+    hostFetch([]);
+    const { onSkip } = renderWelcome();
+    await waitFor(() => expect(onSkip).toHaveBeenCalledTimes(1));
+  });
+
+  it("selects a card and launches that agent", async () => {
+    hostFetch(agents);
+    const { launchImpl } = renderWelcome();
+    await screen.findByText("运维值班");
+
+    fireEvent.click(screen.getByText("运维值班").closest(".qpst-card")!);
+    const card = screen.getByText("运维值班").closest(".qpst-card")!;
+    expect(card.getAttribute("aria-checked")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /启动对话/ }));
+    expect(launchImpl).toHaveBeenCalledWith("ops");
+  });
+
+  it("launches the preselected agent with the launch button only", async () => {
+    hostFetch(agents);
+    const { launchImpl } = renderWelcome();
+    await screen.findByText("默认智能体");
+
+    expect(launchImpl).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /启动对话/ }));
+    expect(launchImpl).toHaveBeenCalledWith("default");
+  });
+
+  it("keeps the launch button disabled while loading", () => {
+    hostFetch(agents);
+    renderWelcome();
+    expect(
+      (screen.getByRole("button", { name: /启动对话/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  it("surfaces a storage failure instead of navigating silently", async () => {
+    hostFetch(agents);
+    const launchImpl = vi.fn(() => ({ ok: false as const, error: "storage" as const }));
+    render(<StartupWelcome onSkip={vi.fn()} launchImpl={launchImpl} />);
+    await screen.findByText("默认智能体");
+
+    fireEvent.click(screen.getByRole("button", { name: /启动对话/ }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: /启动对话/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("shows an error state with retry and hides the launch button", async () => {
+    hostFetch("fail");
+    renderWelcome();
+    const retry = await screen.findByRole("button", { name: "重试" });
+    expect(screen.queryByRole("button", { name: /启动对话/ })).toBeNull();
+
+    hostFetch(agents);
+    fireEvent.click(retry);
+    expect(await screen.findByText("默认智能体")).toBeTruthy();
+  });
+
+  it("moves the selection with the arrow keys", async () => {
+    hostFetch(agents);
+    renderWelcome();
+    await screen.findByText("默认智能体");
+    const grid = document.querySelector(".qpst-grid") as HTMLElement;
+
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    expect(
+      screen.getByText("运维值班").closest(".qpst-card")!.getAttribute(
+        "aria-checked",
+      ),
+    ).toBe("true");
+
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
+    expect(
+      screen.getByText("默认智能体").closest(".qpst-card")!.getAttribute(
+        "aria-checked",
+      ),
+    ).toBe("true");
+  });
+});
