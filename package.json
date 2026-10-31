@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run test && npm run build",
-    "preview": "node scripts/preview.mjs"
+    "preview": "node scripts/preview.mjs",
+    "package": "npm run build && node scripts/package.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",

@@ -18,6 +18,20 @@
 
 ## 安装
 
+**离线安装包**（推荐）：从 [Releases](https://github.com/Ligandlly/qwenpaw-startup-plugin/releases) 下载 `qwenpaw-startup-page-<version>.zip`。
+插件是纯前端，包里已内置 `dist/index.js`，安装时不需要联网、不需要 npm。
+
+```bash
+# QwenPaw 正在运行：直接给 zip，会走 API 热安装
+qwenpaw plugin install ./qwenpaw-startup-page-0.1.0.zip
+
+# QwenPaw 未运行（完全离线）：先解压再指向目录
+unzip qwenpaw-startup-page-0.1.0.zip
+qwenpaw plugin install ./qwenpaw-startup-page
+```
+
+**从源码安装**：
+
 ```bash
 npm ci
 npm run build                      # 产出 dist/index.js（插件入口，已提交）
@@ -37,6 +51,7 @@ qwenpaw plugin install . --force   # QwenPaw 运行时支持热加载
 ```bash
 npm run check      # build + typecheck + test
 npm run test       # vitest（jsdom）
+npm run package    # 打离线安装包 → release/qwenpaw-startup-page-<version>.zip + .sha256
 npm run preview    # 生成 .preview/index.html：不启动后端也能看真实组件
 ```
 
