@@ -1,7 +1,7 @@
 {
   "id": "qwenpaw-startup-page",
   "name": "QwenPaw Startup Page",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "frontend",
   "description": "在聊天首页显示启动页：选择智能体后一键启动进入全新对话。",
   "description_i18n": {
