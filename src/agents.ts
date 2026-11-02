@@ -23,7 +23,8 @@ interface AgentListResponse {
 }
 
 export async function fetchAgents(signal?: AbortSignal): Promise<AgentSummary[]> {
-  const response = await apiFetch("/api/agents", { signal });
+  // Host API-relative: the host bridge prepends `/api` (`/agents` → `/api/agents`).
+  const response = await apiFetch("/agents", { signal });
   if (!response.ok) throw new AgentsError(response.status);
   const payload = (await response.json()) as AgentListResponse | AgentSummary[];
   const list = Array.isArray(payload) ? payload : (payload.agents ?? []);

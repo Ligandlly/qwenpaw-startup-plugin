@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   fetchAgents,
@@ -15,13 +15,18 @@ const agent = (
   enabled?: boolean,
 ): AgentSummary => ({ id, name, enabled });
 
-function hostWith(response: unknown, ok = true): void {
+function hostWith(response: unknown, ok = true): string[] {
+  const paths: string[] = [];
   (window as unknown as { QwenPaw: unknown }).QwenPaw = {
     host: {
       React: {},
-      fetch: async () => ({ ok, status: ok ? 200 : 500, json: async () => response }),
+      fetch: async (path: string) => {
+        paths.push(path);
+        return { ok, status: ok ? 200 : 500, json: async () => response };
+      },
     },
   };
+  return paths;
 }
 
 describe("sortAgents", () => {
@@ -81,5 +86,25 @@ describe("fetchAgents", () => {
   it("throws on a non-2xx response", async () => {
     hostWith({ agents: [] }, false);
     await expect(fetchAgents()).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("asks the host for the API-relative path, never /api/api/...", async () => {
+    const paths = hostWith({ agents: [agent("a", "alpha")] });
+    await fetchAgents();
+    expect(paths).toEqual(["/agents"]);
+  });
+
+  it("adds exactly one /api when the host only exposes apiBaseUrl", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      requested.push(url);
+      return { ok: true, status: 200, json: async () => ({ agents: [] }) };
+    });
+    (window as unknown as { QwenPaw: unknown }).QwenPaw = {
+      host: { React: {}, apiBaseUrl: "" },
+    };
+    await fetchAgents();
+    vi.unstubAllGlobals();
+    expect(requested).toEqual(["/api/agents"]);
   });
 });

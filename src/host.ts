@@ -110,21 +110,32 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
+/**
+ * API paths are written without the `/api` prefix: `host.fetch` and
+ * `host.getApiUrl` already add it (`/agents` → `/api/agents`). A leading
+ * `/api` is stripped so a double prefix can never become `/api/api/...`.
+ */
+export function apiPath(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return normalized.startsWith("/api/") ? normalized.slice(4) : normalized;
+}
+
 /** Prefer the host's authenticated fetch; fall back to a raw one. */
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const host = getHost();
+  const target = apiPath(path);
   const headers = new Headers(init.headers ?? {});
   for (const [key, value] of Object.entries(authHeaders())) {
     if (!headers.has(key)) headers.set(key, value);
   }
   if (host?.fetch) {
-    return host.fetch(path, { ...init, headers });
+    return host.fetch(target, { ...init, headers });
   }
   const url = host?.getApiUrl
-    ? host.getApiUrl(path)
-    : `${host?.apiBaseUrl ?? ""}${path}`;
+    ? host.getApiUrl(target)
+    : `${host?.apiBaseUrl ?? ""}/api${target}`;
   return globalThis.fetch(url, { ...init, headers });
 }
