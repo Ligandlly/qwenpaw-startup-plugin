@@ -27,6 +27,15 @@ export function markLaunched(storage: Storage): void {
   storage.setItem(LAUNCHED_FLAG_KEY, "1");
 }
 
+/** The next new conversation starts blank: drop the "already launched" mark. */
+export function clearLaunched(storage: Storage): void {
+  try {
+    storage.removeItem(LAUNCHED_FLAG_KEY);
+  } catch {
+    /* private mode / quota — the picker just stays away for this tab */
+  }
+}
+
 /**
  * Rewrite `state.selectedAgent` while keeping every other persisted field
  * (`agents`, `lastChatIdByAgent`, …) intact — the host's zustand store reads
