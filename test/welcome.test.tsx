@@ -23,6 +23,14 @@ function hostFetch(list: AgentSummary[] | "fail"): void {
   };
 }
 
+/** Pretend the conversation already runs some agent that is not in the list. */
+function setActiveAgent(agentId: string): void {
+  window.sessionStorage.setItem(
+    "qwenpaw-agent-storage",
+    JSON.stringify({ state: { selectedAgent: agentId }, version: 0 }),
+  );
+}
+
 function renderWelcome(props: Partial<Parameters<typeof StartupWelcome>[0]> = {}) {
   const onSkip = vi.fn();
   const launchImpl = vi.fn(() => ({ ok: true as const }));
@@ -83,13 +91,17 @@ describe("StartupWelcome", () => {
   });
 
   it("launches the preselected agent with the launch button only", async () => {
+    setActiveAgent("ghost");
     hostFetch(agents);
     const { launchImpl } = renderWelcome();
     await screen.findByText("默认智能体");
 
+    const preselected = document
+      .querySelector('.qpst-card[aria-checked="true"]')!
+      .getAttribute("data-agent-id");
     expect(launchImpl).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /启动对话/ }));
-    expect(launchImpl).toHaveBeenCalledWith("default");
+    expect(launchImpl).toHaveBeenCalledWith(preselected);
   });
 
   it("keeps the launch button disabled while loading", () => {
@@ -101,7 +113,33 @@ describe("StartupWelcome", () => {
     ).toBe(true);
   });
 
+  it("disables the launch button when the selection is already the active agent", async () => {
+    hostFetch(agents);
+    const { launchImpl } = renderWelcome();
+    await screen.findByText("默认智能体");
+
+    // Empty storage → the conversation's active agent defaults to "default",
+    // which is also what the picker preselects.
+    const button = screen.getByRole("button", { name: "当前智能体" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText(/直接在下面输入即可/)).toBeTruthy();
+
+    fireEvent.click(button);
+    expect(launchImpl).not.toHaveBeenCalled();
+
+    const grid = document.querySelector(".qpst-grid") as HTMLElement;
+    fireEvent.keyDown(grid, { key: "Enter" });
+    expect(launchImpl).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("运维值班").closest(".qpst-card")!);
+    const enabled = screen.getByRole("button", { name: /启动对话/ }) as HTMLButtonElement;
+    expect(enabled.disabled).toBe(false);
+    fireEvent.click(enabled);
+    expect(launchImpl).toHaveBeenCalledWith("ops");
+  });
+
   it("surfaces a storage failure instead of navigating silently", async () => {
+    setActiveAgent("ghost");
     hostFetch(agents);
     const launchImpl = vi.fn(() => ({ ok: false as const, error: "storage" as const }));
     render(<StartupWelcome onSkip={vi.fn()} launchImpl={launchImpl} />);

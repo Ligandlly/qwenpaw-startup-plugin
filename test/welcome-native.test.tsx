@@ -44,12 +44,23 @@ describe("StartupWelcome native integration", () => {
 
   it("takes the language from host.useLocale instead of localStorage", async () => {
     window.localStorage.setItem("language", "zh-CN");
-    installHost({ useLocale: () => "en-US" });
+    // Active agent stays out of the list, so the button reads "Start chat".
+    installHost({ useLocale: () => "en-US", useSelectedAgent: () => ({ id: "ghost" }) });
     render(<StartupWelcome onSkip={vi.fn()} launchImpl={() => ({ ok: true })} />);
     expect(
       await screen.findByText("Who are we working with today?"),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Start chat" })).toBeTruthy();
+  });
+
+  it("shows the launch button as the active agent when nothing would change", async () => {
+    window.sessionStorage.clear();
+    installHost({ useSelectedAgent: () => ({ id: "ops" }) });
+    render(<StartupWelcome onSkip={vi.fn()} launchImpl={() => ({ ok: true })} />);
+    const button = (await screen.findByRole("button", {
+      name: "当前智能体",
+    })) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
   });
 
   it("marks the host's selected agent as current", async () => {
@@ -66,7 +77,8 @@ describe("StartupWelcome native integration", () => {
   });
 
   it("keeps the launch button disabled until the list arrives", async () => {
-    installHost();
+    // Active agent is not in the list, so the button becomes launchable.
+    installHost({ useSelectedAgent: () => ({ id: "ghost" }) });
     render(<StartupWelcome onSkip={vi.fn()} launchImpl={() => ({ ok: true })} />);
     const button = screen.getByRole("button", { name: /启动对话/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);

@@ -89,7 +89,9 @@ export function StartupWelcome({ hostProps, onSkip, launchImpl }: StartupWelcome
 
   const launch = React.useCallback(
     (agentId: string | null) => {
-      if (!agentId || launching) return;
+      // Selecting the agent that is already active is not a switch: the button
+      // is disabled for it, and Enter/Space must behave like a disabled button.
+      if (!agentId || launching || agentId === currentRef.current) return;
       setLaunching(true);
       setStorageError(false);
       const result = (launchImpl ?? launchAgent)(agentId);
@@ -128,6 +130,13 @@ export function StartupWelcome({ hostProps, onSkip, launchImpl }: StartupWelcome
 
   const ready = status === "ready";
   const hostAvatar = hostProps?.avatar;
+  // Nothing to switch to: the selection IS the agent of this conversation.
+  const onCurrentAgent = Boolean(selectedId) && selectedId === currentId;
+  const launchLabel = launching
+    ? t("launching")
+    : onCurrentAgent
+      ? t("currentAgent")
+      : t("launch");
 
   const brand = () => {
     if (typeof hostAvatar === "string") {
@@ -219,14 +228,16 @@ export function StartupWelcome({ hostProps, onSkip, launchImpl }: StartupWelcome
             primary
             className="qpst-launch"
             loading={launching}
-            disabled={!ready || !selectedId}
-            ariaLabel={launching ? t("launching") : t("launch")}
+            disabled={!ready || !selectedId || onCurrentAgent}
+            ariaLabel={launchLabel}
             onClick={() => launch(selectedId)}
           >
-            {launching ? t("launching") : t("launch")}
-            <span aria-hidden="true">→</span>
+            {launchLabel}
+            {onCurrentAgent ? null : <span aria-hidden="true">→</span>}
           </Button>
-          <span className="qpst-hint">{t("hint")}</span>
+          <span className="qpst-hint">
+            {onCurrentAgent ? t("currentHint") : t("hint")}
+          </span>
         </div>
       ) : null}
     </div>
